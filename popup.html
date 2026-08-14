@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Booking</title>
+  <link rel="stylesheet" href="popup.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Header -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="logo-icon">🎯</div>
+        <div class="brand-text">
+          <h1>Test Booking</h1>
+          <span class="version-tag">v1.0.0</span>
+        </div>
+      </div>
+      <div class="status-pill" id="statusPill">
+        <span class="status-dot"></span>
+        <span class="status-text" id="statusText">STOPPED</span>
+      </div>
+    </header>
+
+    <!-- Master Switch Card -->
+    <section class="control-card">
+      <div class="control-info">
+        <h3>Sniper Engine</h3>
+        <p id="controlDesc">Toggle to start auto-booking driving test slots.</p>
+      </div>
+      <button class="toggle-btn btn-start" id="masterToggleBtn">
+        <span class="btn-icon" id="toggleIcon">▶</span>
+        <span id="toggleBtnText">START SNIPER</span>
+      </button>
+    </section>
+
+    <!-- Navigation Tabs -->
+    <nav class="nav-tabs">
+      <button class="tab-btn active" data-tab="settings">⚙️ Settings</button>
+      <button class="tab-btn" data-tab="notifications">📱 Push Alerts</button>
+      <button class="tab-btn" data-tab="control">⚡ Control</button>
+      <button class="tab-btn" data-tab="logs">📋 Live Logs</button>
+    </nav>
+
+    <!-- Tab Contents -->
+    <main class="tab-content-container">
+      <!-- Settings Tab -->
+      <section class="tab-panel active" id="tab-settings">
+        <form id="settingsForm" class="form-grid">
+          <div class="form-group">
+            <label for="licenseId">Driving Licence Number</label>
+            <input type="text" id="licenseId" placeholder="e.g. SMITH901024A999" required autocomplete="off">
+          </div>
+
+          <div class="form-group">
+            <label for="postcode">Home Postcode</label>
+            <input type="text" id="postcode" placeholder="e.g. SW1A 1AA" required autocomplete="off">
+          </div>
+
+          <div class="form-group">
+            <label for="testCentre">Preferred Test Centre (Optional)</label>
+            <input type="text" id="testCentre" placeholder="e.g. Croydon" autocomplete="off">
+          </div>
+
+          <div class="form-group">
+            <label for="afterDate">Earliest Preferred Date (DD/MM/YYYY)</label>
+            <input type="text" id="afterDate" placeholder="01/09/2026" required autocomplete="off">
+          </div>
+
+          <details class="advanced-accordion">
+            <summary>⚙️ Advanced Timing & Humanisation</summary>
+            <div class="accordion-content">
+              <div class="form-group">
+                <label for="batchSize">Batch Size (Searches per batch)</label>
+                <input type="number" id="batchSize" value="10" min="1" max="50">
+              </div>
+              <div class="form-group">
+                <label for="timeBetweenSearches">Delay Between Searches (ms)</label>
+                <input type="number" id="timeBetweenSearches" value="1500" min="500" step="100">
+              </div>
+              <div class="form-group">
+                <label for="timeBetweenBatches">Delay Between Batches (ms)</label>
+                <input type="number" id="timeBetweenBatches" value="90000" min="10000" step="5000">
+              </div>
+
+              <div class="form-group">
+                <label for="minTypeDelay">Min Keypress Delay (ms)</label>
+                <input type="number" id="minTypeDelay" value="50" min="10" max="1000">
+              </div>
+              <div class="form-group">
+                <label for="maxTypeDelay">Max Keypress Delay (ms)</label>
+                <input type="number" id="maxTypeDelay" value="150" min="20" max="2000">
+              </div>
+              <div class="form-group">
+                <label for="minClickDelay">Min Click Delay (ms)</label>
+                <input type="number" id="minClickDelay" value="300" min="50" max="2000">
+              </div>
+              <div class="form-group">
+                <label for="maxClickDelay">Max Click Delay (ms)</label>
+                <input type="number" id="maxClickDelay" value="800" min="100" max="5000">
+              </div>
+            </div>
+          </details>
+
+          <button type="submit" class="btn-primary" id="saveSettingsBtn">
+            💾 Save Settings
+          </button>
+        </form>
+      </section>
+
+      <!-- Push Alerts Tab -->
+      <section class="tab-panel" id="tab-notifications">
+        <form id="pushForm" class="form-grid">
+          <div class="card">
+            <div class="card-header">
+              <h4>📱 Mobile Push Notifications (ntfy.sh)</h4>
+            </div>
+            <div class="card-body">
+              <p class="help-text">Zero setup needed! Download the free <strong>ntfy app</strong> on your Android/iOS phone and subscribe to your topic name.</p>
+              <div class="form-group">
+                <label for="ntfyTopic">ntfy.sh Topic Name</label>
+                <input type="text" id="ntfyTopic" placeholder="e.g. my_dvsa_alerts_xyz123" autocomplete="off">
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <h4>💬 Telegram Bot Notifications (Optional)</h4>
+            </div>
+            <div class="card-body">
+              <div class="form-group">
+                <label for="telegramToken">Telegram Bot Token</label>
+                <input type="text" id="telegramToken" placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ" autocomplete="off">
+              </div>
+              <div class="form-group">
+                <label for="telegramChatId">Telegram Chat ID</label>
+                <input type="text" id="telegramChatId" placeholder="987654321" autocomplete="off">
+              </div>
+            </div>
+          </div>
+
+          <button type="submit" class="btn-primary">
+            💾 Save Push Alert Settings
+          </button>
+        </form>
+      </section>
+
+      <!-- Control Tab -->
+      <section class="tab-panel" id="tab-control">
+        <div class="card">
+          <div class="card-header">
+            <h4>Quick Actions</h4>
+          </div>
+          <div class="card-body action-buttons">
+            <button class="btn-secondary" id="launchPortalBtn">
+              🌐 Open DVSA Portal in Firefox
+            </button>
+            <button class="btn-outline" id="resetBatchBtn">
+              🔄 Reset Batch Counters
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h4>Search Metrics</h4>
+          </div>
+          <div class="card-body metrics-grid">
+            <div class="metric-item">
+              <span class="metric-label">Current Search</span>
+              <span class="metric-value" id="metricSearchNum">0</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">Batch Size</span>
+              <span class="metric-value" id="metricBatchSize">10</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Logs Tab -->
+      <section class="tab-panel" id="tab-logs">
+        <div class="logs-header">
+          <span>Live Firefox Logs</span>
+          <button class="btn-sm" id="clearLogsBtn">Clear</button>
+        </div>
+        <div class="logs-console" id="logsConsole">
+          <div class="log-entry info">Logs will appear here...</div>
+        </div>
+      </section>
+    </main>
+
+    <!-- Toast Notification -->
+    <div class="toast" id="toast">Settings Saved!</div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

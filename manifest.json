@@ -1,0 +1,66 @@
+{
+  "manifest_version": 3,
+  "name": "TestBooking",
+  "version": "1.0.1",
+  "description": "Automated DVSA driving test slot sniper extension for Firefox (Desktop & Mobile).",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "{4b9e2a10-87f5-4d32-9c1a-6e5d4c3b2a1f}",
+      "strict_min_version": "109.0",
+      "data_collection_permissions": {
+        "required": ["none"]
+      }
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "permissions": [
+    "storage",
+    "notifications",
+    "alarms"
+  ],
+  "host_permissions": [
+    "https://*.dvsa.gov.uk/*",
+    "https://driverpracticaltest.dvsa.gov.uk/*",
+    "https://ntfy.sh/*",
+    "https://api.telegram.org/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "TestBooking",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "options_ui": {
+    "page": "popup.html",
+    "open_in_tab": true
+  },
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.dvsa.gov.uk/*",
+        "https://driverpracticaltest.dvsa.gov.uk/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["stealth.js"],
+      "matches": [
+        "https://*.dvsa.gov.uk/*",
+        "https://driverpracticaltest.dvsa.gov.uk/*"
+      ]
+    }
+  ]
+}
