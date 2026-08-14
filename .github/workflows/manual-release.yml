@@ -1,23 +1,26 @@
-name: Release Build
+name: Manual Release
 
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag version to release (leave empty to use the last tag on main)'
+        required: false
+        default: ''
 
 permissions:
   contents: write
 
 jobs:
-  release:
-    name: Build & Create GitHub Release
+  manual-release:
+    name: Build & Push GitHub Release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: main
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -34,22 +37,30 @@ jobs:
         id: determine_tag
         run: |
           git fetch --tags origin
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          INPUT_TAG="${{ github.event.inputs.tag_name }}"
+          
+          if [ -n "$INPUT_TAG" ]; then
+            TAG_NAME="$INPUT_TAG"
+            echo "Using user-provided tag: $TAG_NAME"
+          else
             TAG_NAME=$(git describe --tags --abbrev=0 origin/main 2>/dev/null || git tag --merged origin/main --sort=-version:refname 2>/dev/null | head -n 1)
             if [ -z "$TAG_NAME" ]; then
               VERSION=$(node -p "require('./manifest.json').version")
               TAG_NAME="v$VERSION"
+              echo "No tag found on main, falling back to manifest version: $TAG_NAME"
+            else
+              echo "Found last tag on main: $TAG_NAME"
             fi
-          else
-            TAG_NAME="${GITHUB_REF_NAME}"
           fi
+          
           echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
 
-      - name: Create GitHub Release
+      - name: Push to GitHub Releases
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.TAG_NAME }}
           name: Release ${{ env.TAG_NAME }}
+          target_commitish: main
           draft: false
           prerelease: false
           generate_release_notes: true
