@@ -1,0 +1,50 @@
+name: AMO (Firefox Add-ons) Submission
+
+on:
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: 'Submission channel (unlisted or listed)'
+        required: true
+        default: 'unlisted'
+        type: choice
+        options:
+          - unlisted
+          - listed
+
+permissions:
+  contents: read
+
+jobs:
+  sign-and-submit:
+    name: Sign & Submit to AMO
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run Linter
+        run: npm run lint
+
+      - name: Sign & Build with web-ext
+        env:
+          AMO_JWT_ISSUER: ${{ secrets.AMO_JWT_ISSUER }}
+          AMO_JWT_SECRET: ${{ secrets.AMO_JWT_SECRET }}
+        run: |
+          if [ -z "$AMO_JWT_ISSUER" ] || [ -z "$AMO_JWT_SECRET" ]; then
+            echo "Error: AMO_JWT_ISSUER and AMO_JWT_SECRET repository secrets must be set in GitHub Settings -> Secrets."
+            exit 1
+          fi
+          npx web-ext sign --api-key="$AMO_JWT_ISSUER" --api-secret="$AMO_JWT_SECRET" --channel="${{ inputs.channel }}"
+
+      - name: Upload Signed XPI Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-firefox-extension-xpi
+          path: web-ext-artifacts/*.xpi
+          retention-days: 14

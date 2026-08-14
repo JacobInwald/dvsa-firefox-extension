@@ -1,0 +1,49 @@
+name: CI & Linting
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  lint:
+    name: Lint & Validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate manifest.json syntax
+        run: node -e "JSON.parse(require('fs').readFileSync('manifest.json'))"
+
+      - name: Run web-ext lint
+        run: npm run lint
+
+  build:
+    name: Build Extension Package
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Build WebExtension Package
+        run: npm run build
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: dvsa-firefox-extension-build
+          path: web-ext-artifacts/*.zip
+          retention-days: 7

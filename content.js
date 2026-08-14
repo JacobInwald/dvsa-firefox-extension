@@ -407,7 +407,7 @@
         return;
       }
 
-      // 2. Captcha Check
+      // 3. Captcha Check
       if ($('.h-captcha') || $('iframe[src*="hcaptcha"]')) {
         await this.onSecurityCheck();
         return;

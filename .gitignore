@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Build and packaging output
+web-ext-artifacts/
+*.zip
+*.xpi
+.amo-upload-uuid
+
+# OS / Editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log

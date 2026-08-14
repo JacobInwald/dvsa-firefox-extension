@@ -229,12 +229,6 @@ document.addEventListener('DOMContentLoaded', () => {
     setTimeout(() => toast.classList.remove('show'), 2500);
   }
 
-  function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.innerText = text;
-    return div.innerHTML;
-  }
-
   // Storage listener for live metrics and logs update
   extensionAPI.storage.onChanged.addListener((changes, namespace) => {
     if (namespace === 'local') {
