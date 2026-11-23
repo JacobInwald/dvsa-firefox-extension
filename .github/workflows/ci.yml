@@ -1,49 +1,31 @@
-name: CI & Linting
+name: CI
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main]
   pull_request:
-    branches: [ main, master ]
+    branches: [main]
 
 jobs:
-  lint:
-    name: Lint & Validate
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Validate manifest.json syntax
-        run: node -e "JSON.parse(require('fs').readFileSync('manifest.json'))"
+      - run: npm install --no-audit --no-fund
 
-      - name: Run web-ext lint
+      - name: Lint
         run: npm run lint
 
-  build:
-    name: Build Extension Package
-    needs: lint
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Build WebExtension Package
+      - name: Build (unsigned)
         run: npm run build
 
-      - name: Upload Build Artifact
-        uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4
         with:
-          name: dvsa-firefox-extension-build
+          name: testbooking-unsigned
           path: web-ext-artifacts/*.zip
           retention-days: 7

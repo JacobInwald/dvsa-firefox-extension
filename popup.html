@@ -5,9 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Test Booking</title>
   <link rel="stylesheet" href="popup.css">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
   <div class="app-container">
@@ -17,7 +14,7 @@
         <div class="logo-icon">🎯</div>
         <div class="brand-text">
           <h1>Test Booking</h1>
-          <span class="version-tag">v1.0.1</span>
+          <span class="version-tag" id="versionTag"></span>
         </div>
       </div>
       <div class="status-pill" id="statusPill">
@@ -41,35 +38,44 @@
     <!-- Navigation Tabs -->
     <nav class="nav-tabs">
       <button class="tab-btn active" data-tab="settings">⚙️ Settings</button>
-      <button class="tab-btn" data-tab="notifications">📱 Push Alerts</button>
       <button class="tab-btn" data-tab="control">⚡ Control</button>
-      <button class="tab-btn" data-tab="logs">📋 Live Logs</button>
+      <button class="tab-btn" data-tab="logs">📋 Logs</button>
     </nav>
 
     <!-- Tab Contents -->
     <main class="tab-content-container">
       <!-- Settings Tab -->
       <section class="tab-panel active" id="tab-settings">
-        <form id="settingsForm" class="form-grid">
+        <form id="settingsForm" class="form-grid" novalidate>
           <div class="form-group">
             <label for="licenseId">Driving Licence Number</label>
-            <input type="text" id="licenseId" placeholder="e.g. SMITH901024A999" required autocomplete="off">
+            <input type="text" id="licenseId" placeholder="e.g. SMITH901024A999" autocomplete="off" autocapitalize="characters">
           </div>
 
           <div class="form-group">
             <label for="postcode">Home Postcode</label>
-            <input type="text" id="postcode" placeholder="e.g. SW1A 1AA" required autocomplete="off">
+            <input type="text" id="postcode" placeholder="e.g. SW1A 1AA" autocomplete="off" autocapitalize="characters">
           </div>
 
           <div class="form-group">
-            <label for="testCentre">Preferred Test Centre (Optional)</label>
+            <label for="testCentre">Preferred Test Centres (optional, comma-separated)</label>
             <input type="text" id="testCentre" placeholder="e.g. Croydon" autocomplete="off">
           </div>
 
           <div class="form-group">
-            <label for="afterDate">Earliest Preferred Date (DD/MM/YYYY)</label>
-            <input type="text" id="afterDate" placeholder="01/09/2026" required autocomplete="off">
+            <label for="afterDate">Earliest Preferred Date (DD/MM/YYYY, optional)</label>
+            <input type="text" id="afterDate" placeholder="01/09/2026" autocomplete="off" inputmode="numeric">
           </div>
+
+          <label class="checkbox-row" for="alertOnly">
+            <input type="checkbox" id="alertOnly">
+            <span>Alert only: notify me when a slot is found, but don't reserve it</span>
+          </label>
+
+          <label class="checkbox-row" for="backgroundMode">
+            <input type="checkbox" id="backgroundMode" checked>
+            <span>Background mode (recommended): keeps Firefox awake with the screen off</span>
+          </label>
 
           <details class="advanced-accordion">
             <summary>⚙️ Advanced Timing & Humanisation</summary>
@@ -112,44 +118,6 @@
         </form>
       </section>
 
-      <!-- Push Alerts Tab -->
-      <section class="tab-panel" id="tab-notifications">
-        <form id="pushForm" class="form-grid">
-          <div class="card">
-            <div class="card-header">
-              <h4>📱 Mobile Push Notifications (ntfy.sh)</h4>
-            </div>
-            <div class="card-body">
-              <p class="help-text">Zero setup needed! Download the free <strong>ntfy app</strong> on your Android/iOS phone and subscribe to your topic name.</p>
-              <div class="form-group">
-                <label for="ntfyTopic">ntfy.sh Topic Name</label>
-                <input type="text" id="ntfyTopic" placeholder="e.g. my_dvsa_alerts_xyz123" autocomplete="off">
-              </div>
-            </div>
-          </div>
-
-          <div class="card">
-            <div class="card-header">
-              <h4>💬 Telegram Bot Notifications (Optional)</h4>
-            </div>
-            <div class="card-body">
-              <div class="form-group">
-                <label for="telegramToken">Telegram Bot Token</label>
-                <input type="text" id="telegramToken" placeholder="123456789:ABCdefGhIJKlmNoPQRsTUVwxyZ" autocomplete="off">
-              </div>
-              <div class="form-group">
-                <label for="telegramChatId">Telegram Chat ID</label>
-                <input type="text" id="telegramChatId" placeholder="987654321" autocomplete="off">
-              </div>
-            </div>
-          </div>
-
-          <button type="submit" class="btn-primary">
-            💾 Save Push Alert Settings
-          </button>
-        </form>
-      </section>
-
       <!-- Control Tab -->
       <section class="tab-panel" id="tab-control">
         <div class="card">
@@ -158,11 +126,26 @@
           </div>
           <div class="card-body action-buttons">
             <button class="btn-secondary" id="launchPortalBtn">
-              🌐 Open DVSA Portal in Firefox
+              🌐 Open DVSA Portal
+            </button>
+            <button class="btn-outline" id="testNotifyBtn">
+              🔔 Send Test Notification
             </button>
             <button class="btn-outline" id="resetBatchBtn">
               🔄 Reset Batch Counters
             </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <h4>📱 Background health</h4>
+          </div>
+          <div class="card-body">
+            <p class="help-text" id="healthSummary">Start the sniper, lock your phone for 10+ minutes, then come back here. Every time Android froze Firefox shows up below.</p>
+            <ul class="gap-list" id="gapList"></ul>
+            <p class="help-text">While running, the DVSA tab shows the DVSA pages inside TestBooking and plays an inaudible sound, so Android keeps Firefox running (you'll see a media notification; pause = stop). If the green "Tap once" banner appears, tap it. To avoid it entirely: <strong>Firefox Settings → Site permissions → Autoplay → Allow audio and video</strong>.</p>
+            <p class="help-text">Also turn off battery optimisation for Firefox: <strong>Android Settings → Apps → Firefox → Battery → Unrestricted</strong>.</p>
           </div>
         </div>
 
@@ -179,6 +162,10 @@
               <span class="metric-label">Batch Size</span>
               <span class="metric-value" id="metricBatchSize">10</span>
             </div>
+            <div class="metric-item">
+              <span class="metric-label">Last Activity</span>
+              <span class="metric-value" id="metricHeartbeat">–</span>
+            </div>
           </div>
         </div>
       </section>
@@ -186,7 +173,7 @@
       <!-- Logs Tab -->
       <section class="tab-panel" id="tab-logs">
         <div class="logs-header">
-          <span>Live Firefox Logs</span>
+          <span>Logs</span>
           <button class="btn-sm" id="clearLogsBtn">Clear</button>
         </div>
         <div class="logs-console" id="logsConsole">

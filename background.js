@@ -1,136 +1,152 @@
-// DVSA Sniper Firefox Extension - Background Script
-const extensionAPI = typeof browser !== 'undefined' ? browser : chrome;
+// TestBooking: background script (Firefox for Android).
+// Uses the promise-based `browser` API; callback-style calls throw in Firefox.
+const api = globalThis.browser ?? globalThis.chrome;
 
-extensionAPI.runtime.onInstalled.addListener(() => {
-  console.log('[DVSA Sniper Background] Firefox extension background script installed.');
-  
-  extensionAPI.storage.local.get([
-    'licenseId', 'postcode', 'testCentre', 'afterDate',
-    'batchSize', 'timeBetweenSearches', 'timeBetweenBatches',
-    'minTypeDelay', 'maxTypeDelay', 'minClickDelay', 'maxClickDelay',
-    'isRunning', 'ntfyTopic', 'telegramToken', 'telegramChatId', 'logs'
-  ], (items) => {
-    const defaults = {
-      licenseId: items.licenseId || '',
-      postcode: items.postcode || '',
-      testCentre: items.testCentre || '',
-      afterDate: items.afterDate || '',
-      batchSize: items.batchSize || 10,
-      timeBetweenSearches: items.timeBetweenSearches || 1500,
-      timeBetweenBatches: items.timeBetweenBatches || 90000,
-      minTypeDelay: items.minTypeDelay || 50,
-      maxTypeDelay: items.maxTypeDelay || 150,
-      minClickDelay: items.minClickDelay || 300,
-      maxClickDelay: items.maxClickDelay || 800,
-      ntfyTopic: items.ntfyTopic || '',
-      telegramToken: items.telegramToken || '',
-      telegramChatId: items.telegramChatId || '',
-      isRunning: items.isRunning !== undefined ? items.isRunning : false,
-      _searchNumber: 0,
-      _lastBatchTime: 0,
-      logs: items.logs || []
-    };
-    extensionAPI.storage.local.set(defaults);
-    updateBadge(defaults.isRunning);
-  });
+const PORTAL_URL = 'https://driverpracticaltest.dvsa.gov.uk/application';
+const DVSA_TABS = ['https://*.dvsa.gov.uk/*'];
+
+const DEFAULTS = {
+  licenseId: '',
+  postcode: '',
+  testCentre: '',
+  afterDate: '',
+  batchSize: 10,
+  timeBetweenSearches: 1500,
+  timeBetweenBatches: 90000,
+  minTypeDelay: 50,
+  maxTypeDelay: 150,
+  minClickDelay: 300,
+  maxClickDelay: 800,
+  alertOnly: false,
+  backgroundMode: true,
+  isRunning: false,
+  _searchNumber: 0,
+  _lastBatchTime: 0,
+  logs: []
+};
+
+// Only fill in keys that are missing, so updates never wipe saved settings.
+api.runtime.onInstalled.addListener(async () => {
+  const items = await api.storage.local.get(null);
+  const missing = {};
+  for (const [key, value] of Object.entries(DEFAULTS)) {
+    if (items[key] === undefined) missing[key] = value;
+  }
+  // Keys from removed features (ntfy/Telegram, live status notification).
+  await api.storage.local.remove(['ntfyTopic', 'telegramToken', 'telegramChatId', 'statusNotification']);
+  await api.notifications.clear('dvsa-status').catch(() => {});
+  if (Object.keys(missing).length) await api.storage.local.set(missing);
 });
 
-// Update Action Badge based on running status
-function updateBadge(isRunning, isBlocked = false) {
-  const actionAPI = extensionAPI.action || extensionAPI.browserAction;
-  if (!actionAPI) return;
-
-  if (isBlocked) {
-    actionAPI.setBadgeText({ text: 'ERR' });
-    actionAPI.setBadgeBackgroundColor({ color: '#EF4444' });
-  } else if (isRunning) {
-    actionAPI.setBadgeText({ text: 'ON' });
-    actionAPI.setBadgeBackgroundColor({ color: '#10B981' });
-  } else {
-    actionAPI.setBadgeText({ text: 'OFF' });
-    actionAPI.setBadgeBackgroundColor({ color: '#6B7280' });
-  }
-}
-
-// Append log to local storage
+// Serialise log writes so concurrent messages don't clobber each other.
+let logQueue = Promise.resolve();
 function appendLog(message, level = 'info') {
   const timestamp = new Date().toLocaleTimeString('en-GB', { hour12: false });
-  const entry = { timestamp, level, message };
-
-  extensionAPI.storage.local.get(['logs'], (res) => {
-    const logs = res.logs || [];
-    logs.push(entry);
-    if (logs.length > 200) logs.shift();
-    extensionAPI.storage.local.set({ logs });
-  });
+  logQueue = logQueue.then(async () => {
+    const { logs = [] } = await api.storage.local.get('logs');
+    logs.push({ timestamp, level, message });
+    while (logs.length > 300) logs.shift();
+    await api.storage.local.set({ logs });
+  }).catch(e => console.error('[TestBooking] Failed to write log:', e));
+  return logQueue;
 }
 
-// Send external push notification (ntfy.sh & Telegram)
-async function sendExternalPush(title, message) {
-  extensionAPI.storage.local.get(['ntfyTopic', 'telegramToken', 'telegramChatId'], async (res) => {
-    // 1. ntfy.sh Push Notification
-    if (res.ntfyTopic) {
-      try {
-        await fetch(`https://ntfy.sh/${res.ntfyTopic.trim()}`, {
-          method: 'POST',
-          headers: {
-            'Title': title,
-            'Priority': 'high',
-            'Tags': 'tada,warning'
-          },
-          body: `${message}\n\nTime: ${new Date().toLocaleTimeString()}`
-        });
-        appendLog(`[PUSH] Sent ntfy.sh alert to topic: ${res.ntfyTopic}`, 'success');
-      } catch (e) {
-        console.error('[DVSA Sniper] Failed ntfy push:', e);
-      }
-    }
+// One notification per event. Each gets its own id so Android shows (and
+// sounds) every one, rather than silently updating a single entry. The same
+// `key` within DEDUPE_MS is dropped, e.g. a captcha seen again after a reload.
+const DEDUPE_MS = 10 * 60 * 1000;
+const lastShown = {};
 
-    // 2. Telegram Bot Push Notification
-    if (res.telegramToken && res.telegramChatId) {
-      try {
-        const text = encodeURIComponent(`*${title}*\n${message}`);
-        await fetch(`https://api.telegram.org/bot${res.telegramToken.trim()}/sendMessage?chat_id=${res.telegramChatId.trim()}&text=${text}&parse_mode=Markdown`);
-        appendLog(`[PUSH] Sent Telegram alert to chat: ${res.telegramChatId}`, 'success');
-      } catch (e) {
-        console.error('[DVSA Sniper] Failed Telegram push:', e);
-      }
-    }
-  });
+async function notify({ key, title, message, force = false }) {
+  const now = Date.now();
+  if (key && !force && lastShown[key] && now - lastShown[key] < DEDUPE_MS) return;
+  if (key) lastShown[key] = now;
+  appendLog(`[NOTIFICATION] ${title}: ${message}`, 'success');
+  try {
+    await api.notifications.create(`tb-${key || 'msg'}-${now}`, {
+      type: 'basic',
+      iconUrl: api.runtime.getURL('icons/icon128.png'),
+      title,
+      message
+    });
+  } catch (e) {
+    console.error('[TestBooking] Failed to show notification:', e);
+    appendLog('Could not show a notification: ' + e.message, 'error');
+  }
 }
 
-// Handle incoming messages
-extensionAPI.runtime.onMessage.addListener((request, sender, sendResponse) => {
+api.runtime.onMessage.addListener((request) => {
   if (request.action === 'notify') {
-    try {
-      const iconPath = extensionAPI.runtime.getURL ? extensionAPI.runtime.getURL('icons/icon128.png') : 'icons/icon128.png';
-      extensionAPI.notifications.create({
-        type: 'basic',
-        iconUrl: iconPath,
-        title: request.title || 'Test Booking Alert',
-        message: request.message || 'Test Booking update',
-        priority: 2
-      });
-    } catch (e) {
-      console.error('[Test Booking] Failed Firefox notification:', e);
-    }
-
-    sendExternalPush(request.title || 'Test Booking Alert', request.message || 'Test Booking update');
-    appendLog(`[NOTIFICATION] ${request.title}: ${request.message}`, 'success');
-    sendResponse({ success: true });
+    notify({
+      key: request.key,
+      title: request.title || 'TestBooking',
+      message: request.message || '',
+      force: !!request.force
+    });
   } else if (request.action === 'log') {
     appendLog(request.message, request.level || 'info');
-    sendResponse({ success: true });
-  } else if (request.action === 'updateStatus') {
-    updateBadge(request.isRunning, request.isBlocked);
-    sendResponse({ success: true });
   }
-  return true;
+  return Promise.resolve({ success: true });
 });
 
-// Storage sync listener
-extensionAPI.storage.onChanged.addListener((changes, namespace) => {
-  if (namespace === 'local' && changes.isRunning) {
-    updateBadge(changes.isRunning.newValue);
+api.storage.onChanged.addListener((changes, area) => {
+  if (area !== 'local' || !changes.isRunning) return;
+  if (changes.isRunning.newValue && !changes.isRunning.oldValue) {
+    // Fresh start: reset per-run state, forget recent alerts.
+    for (const k of Object.keys(lastShown)) delete lastShown[k];
+    api.storage.local.set({
+      _status: { state: 'running', detail: '', at: Date.now() },
+      _runStarted: Date.now(),
+      _heartbeat: Date.now(),
+      _gaps: [],
+      _stuck: 0,
+      _reserving: 0,
+      _hostBroken: false
+    });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Watchdog. The engine writes a heartbeat every 10s while running. If it goes
+// quiet, nudge the DVSA tab: ask the host page to reload its frame (keeps the
+// keep-alive sound going), or reload the whole tab if that doesn't answer.
+// Note: if Android has frozen Firefox, this can only fire once it's resumed.
+// ---------------------------------------------------------------------------
+const WATCHDOG = 'dvsa-watchdog';
+const STALE_MS = 2.5 * 60 * 1000;
+
+api.alarms.get(WATCHDOG).then(alarm => {
+  if (!alarm) api.alarms.create(WATCHDOG, { periodInMinutes: 1 });
+});
+
+api.alarms.onAlarm.addListener(async (alarm) => {
+  if (alarm.name !== WATCHDOG) return;
+  const s = await api.storage.local.get(['isRunning', '_heartbeat', '_status']);
+  if (!s.isRunning) return;
+  // While waiting on the user (captcha) or in a batch pause the engine is
+  // still beating, so a stale heartbeat really means it has stalled.
+  if (Date.now() - (s._heartbeat || 0) < STALE_MS) return;
+
+  await api.storage.local.set({ _heartbeat: Date.now() }); // one nudge per stall
+  const tabs = await api.tabs.query({ url: DVSA_TABS }).catch(() => []);
+  if (!tabs.length) {
+    appendLog('[WATCHDOG] TestBooking is on but no DVSA tab is open.', 'warn');
+    notify({ key: 'no-tab', title: '❓ DVSA tab closed',
+      message: 'TestBooking is switched on but the DVSA tab was closed. Tap here to reopen it.' });
+    return;
+  }
+  appendLog(`[WATCHDOG] No activity for ${Math.round((Date.now() - (s._heartbeat || 0)) / 1000)}s.`, 'warn');
+  const reply = await api.tabs.sendMessage(tabs[0].id, { action: 'kick' }).catch(() => null);
+  if (!reply) await api.tabs.reload(tabs[0].id).catch(() => {});
+});
+
+// Tapping a notification jumps to the DVSA tab (or opens the portal).
+api.notifications.onClicked.addListener(async (id) => {
+  api.notifications.clear(id).catch(() => {});
+  const tabs = await api.tabs.query({ url: DVSA_TABS }).catch(() => []);
+  if (tabs.length) {
+    await api.tabs.update(tabs[0].id, { active: true });
+  } else {
+    await api.tabs.create({ url: PORTAL_URL });
   }
 });

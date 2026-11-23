@@ -1,22 +1,36 @@
 {
   "name": "dvsa-firefox-extension",
-  "version": "1.0.1",
-  "description": "Automated DVSA driving test slot sniper extension for Firefox (Desktop & Mobile)",
+  "version": "1.0.7",
+  "private": true,
+  "description": "Automated DVSA driving test slot finder for Firefox for Android.",
   "scripts": {
-    "lint": "npx web-ext lint",
-    "build": "npx web-ext build --overwrite-dest",
-    "package": "npx web-ext build --overwrite-dest",
-    "start": "npx web-ext run"
+    "lint": "web-ext lint",
+    "build": "web-ext build",
+    "start": "web-ext run --target=firefox-android --firefox-apk=org.mozilla.firefox",
+    "sign": "node --env-file-if-exists=.env node_modules/.bin/web-ext sign --channel=unlisted",
+    "version": "node scripts/set-version.mjs",
+    "test:live": "node scripts/bidi.mjs"
+  },
+  "webExt": {
+    "ignoreFiles": [
+      "README.md",
+      "package.json",
+      "package-lock.json",
+      "scripts",
+      "web-ext-artifacts",
+      "node_modules",
+      ".env",
+      ".amo-upload-uuid",
+      ".github",
+      ".gitignore",
+      ".env*"
+    ],
+    "build": {
+      "overwriteDest": true
+    }
   },
   "devDependencies": {
     "web-ext": "^8.0.0"
   },
-  "keywords": [
-    "dvsa",
-    "firefox-extension",
-    "driving-test",
-    "sniper",
-    "webextension"
-  ],
   "license": "MIT"
 }

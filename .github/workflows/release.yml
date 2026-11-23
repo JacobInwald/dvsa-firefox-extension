@@ -1,56 +1,72 @@
-name: Release Build
+name: Release (signed XPI for phone install)
+
+# Push a tag like v1.0.2, or run manually with a version.
+# Produces a Mozilla-signed .xpi attached to a GitHub Release at a stable URL:
+#   https://github.com/<owner>/<repo>/releases/latest/download/testbooking.xpi
+# Requires repo secrets AMO_JWT_ISSUER and AMO_JWT_SECRET
+# (https://addons.mozilla.org/developers/addon/api/key/).
 
 on:
   push:
-    tags:
-      - 'v*'
+    tags: ['v*']
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release, e.g. 1.0.2 (must be higher than any version already signed)'
+        required: true
 
 permissions:
   contents: write
 
 jobs:
   release:
-    name: Build & Create GitHub Release
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+      - uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Run Linter
+      - run: npm install --no-audit --no-fund
+
+      - name: Set version from tag / input
+        run: |
+          VERSION="${{ github.event.inputs.version || github.ref_name }}"
+          VERSION="${VERSION#v}"
+          node scripts/set-version.mjs "$VERSION"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - name: Lint
         run: npm run lint
 
-      - name: Build WebExtension Package
-        run: npm run build
-
-      - name: Determine Release Tag
-        id: determine_tag
+      - name: Sign with Mozilla (unlisted)
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.AMO_JWT_ISSUER }}
+          WEB_EXT_API_SECRET: ${{ secrets.AMO_JWT_SECRET }}
         run: |
-          git fetch --tags origin
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG_NAME=$(git describe --tags --abbrev=0 origin/main 2>/dev/null || git tag --merged origin/main --sort=-version:refname 2>/dev/null | head -n 1)
-            if [ -z "$TAG_NAME" ]; then
-              VERSION=$(node -p "require('./manifest.json').version")
-              TAG_NAME="v$VERSION"
-            fi
-          else
-            TAG_NAME="${GITHUB_REF_NAME}"
+          if [ -z "$WEB_EXT_API_KEY" ] || [ -z "$WEB_EXT_API_SECRET" ]; then
+            echo "::error::Set AMO_JWT_ISSUER and AMO_JWT_SECRET in Settings -> Secrets -> Actions. Firefox on Android only installs signed add-ons."
+            exit 1
           fi
-          echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
+          npm run sign -- --approval-timeout=1200000
+          XPI=$(ls web-ext-artifacts/*.xpi | head -n 1)
+          cp "$XPI" web-ext-artifacts/testbooking.xpi
+          cp "$XPI" "web-ext-artifacts/testbooking-$VERSION.xpi"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ env.TAG_NAME }}
-          name: Release ${{ env.TAG_NAME }}
-          draft: false
-          prerelease: false
+          tag_name: v${{ env.VERSION }}
+          name: v${{ env.VERSION }}
           generate_release_notes: true
-          files: web-ext-artifacts/*.zip
+          body: |
+            ## Install on your phone (Firefox for Android)
+            1. On your phone, open this link in Firefox to download the add-on:
+               https://github.com/${{ github.repository }}/releases/latest/download/testbooking.xpi
+            2. Firefox → **Settings → About Firefox** → tap the Firefox logo 5 times (enables the debug menu).
+            3. Go back to **Settings** → **Install add-on from file** → pick `testbooking.xpi` from Downloads.
+            4. Allow notifications for Firefox in Android settings so slot alerts reach you.
+          files: |
+            web-ext-artifacts/testbooking.xpi
+            web-ext-artifacts/testbooking-${{ env.VERSION }}.xpi

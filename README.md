@@ -1,258 +1,110 @@
-# 🎯 DVSA Driving Test Slot Sniper — Firefox Extension
+# DVSA Test Booking: Firefox for Android Extension
 
-[![Firefox Extension](https://img.shields.io/badge/Firefox-MV3-orange.svg)](https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions)
-[![Version](https://img.shields.io/badge/version-1.0.1-blue.svg)](manifest.json)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](package.json)
+A Firefox for Android extension that watches the DVSA practical test booking site (`driverpracticaltest.dvsa.gov.uk`). It finds the first slot that matches your settings and either reserves it or just alerts you, using normal Android notifications. You don't need any third-party apps or accounts.
 
-An automated driving test slot sniper built specifically for **Firefox Desktop** and **Firefox Mobile (Android)**. It continuously monitors the DVSA practical test booking portal (`driverpracticaltest.dvsa.gov.uk`), reserves matching slots according to your preferences, and sends immediate mobile push alerts so you can complete payment.
+Desktop Firefox is no longer supported. Development uses it only as a test harness.
 
----
+## Install on your phone
 
-## 📑 Table of Contents
+Firefox for Android only installs add-ons that Mozilla has signed. The release pipeline signs every build, so:
 
-- [Features](#-features)
-- [Directory & File Overview](#-directory--file-overview)
-- [Installation Instructions](#-installation-instructions)
-  - [Firefox Desktop (Quick / Temporary)](#1-firefox-desktop-temporary-load)
-  - [Firefox Desktop (CLI / Developer)](#2-firefox-desktop-via-web-ext)
-  - [Firefox Android](#3-firefox-android)
-- [Packaging & Building for Release](#-packaging--building-for-release)
-  - [1. Building Package (ZIP / XPI)](#1-building-the-extension-package)
-  - [2. Firefox Add-ons (AMO) Signing & Distribution](#2-signing--publishing-on-amo)
-- [Configuration & Usage Guide](#-configuration--usage-guide)
-  - [Configuring the Sniper](#1-configuring-sniper-settings)
-  - [Setting Up Mobile Push Notifications](#2-setting-up-mobile-push-alerts)
-- [Stealth & Anti-Pausing Architecture](#-stealth--anti-pausing-architecture)
-- [Development & Linting](#-development--linting)
-- [CI/CD Pipelines & GitHub Workflows](#-cicd-pipelines--github-workflows)
+1. On your phone, open this link in Firefox to download the add-on:
+   **https://github.com/JacobInwald/dvsa-firefox-extension/releases/latest/download/testbooking.xpi**
+2. In Firefox, open **Settings → About Firefox** and tap the Firefox logo **5 times** to enable the debug menu.
+3. Go back to **Settings** and tap **Install add-on from file**, then pick `testbooking.xpi` from your Downloads.
+4. In Android settings, make sure **notifications are allowed for Firefox**, and set **Apps → Firefox → Battery** to **Unrestricted**.
+5. Open the extension (**⋮ menu → Extensions → TestBooking**), then tap **🔔 Send Test Notification** to confirm alerts work.
 
----
+You can also install a signed `.xpi` straight from a web server on your Wi-Fi. Serve it as `application/x-xpinstall` and Firefox offers to install it when you open the link.
 
-## ⚡ Features
+## Usage
 
-- **Automated Slot Searching & Reservation**: Auto-fills login data, navigates search forms, cycles test centres, checks calendar slots against your earliest preferred date, and selects/reserves matching test slots.
-- **Background & Unfocused Tab Anti-Pausing**: Uses visibility spoofing (`document.hidden = false`), focus overrides, and a **silent Web Audio keep-alive loop** to prevent Firefox from throttling timers when minimized or running in an unfocused background tab.
-- **Web Worker Ticker**: Uses background worker timers for reliable delay handling without browser tab throttling.
-- **Mobile Push Alerts (ntfy.sh & Telegram)**: Get instant push notifications on your phone via **ntfy.sh** (free, no account required) or a custom **Telegram Bot**.
-- **Anti-Bot & Captcha Safety**: Automatically detects hCaptcha, search rate limits, and Imperva block pages, pausing execution safely and warning you via notification.
-- **Humanized Actions**: Configurable randomized typing speeds, click delays, batch sizes, and inter-batch pause intervals to prevent bot detection.
+1. **Settings** tab: enter your licence number and postcode. The test centres (comma-separated) and earliest date (`DD/MM/YYYY`) are optional. If you leave the date blank, it searches from today.
+   - **Alert only:** notifies you when a slot is found but doesn't reserve it, so you can book it yourself.
+   - **Background mode** (on by default): see below.
+2. Tap **Save Settings**, then **START SNIPER**. This reloads your DVSA tab, or opens the portal if none is open.
+3. If a green **"Tap once…"** banner appears, tap it. To stop it appearing, set **Firefox Settings → Site permissions → Autoplay → Allow audio and video**.
 
----
+You get a notification for each of these, written to match what's on screen:
 
-## 📁 Directory & File Overview
-
-```
-dvsa-firefox-extension/
-├── manifest.json                 # WebExtension Manifest V3 configuration
-├── background.js                 # Service worker / background script (badges, notifications, logs)
-├── content.js                    # Content script running engine on DVSA portal pages
-├── stealth.js                    # Page-world script (visibility spoofing, silent WebAudio keep-alive)
-├── popup.html                    # Extension popup UI structure
-├── popup.css                     # Extension popup modern dark theme styling
-├── popup.js                      # Popup UI interactive logic and settings manager
-├── icons/                        # Extension icons (16px, 48px, 128px)
-│   ├── icon16.png
-│   ├── icon48.png
-│   └── icon128.png
-├── package.json                  # npm commands (lint, build, package)
-├── .gitignore                    # Version control ignore list
-├── INSTALLATION_GUIDE_FIREFOX.md # Quick installation reference
-└── README.md                     # Comprehensive documentation (this file)
-```
-
----
-
-## 🚀 Installation Instructions
-
-### 1. Firefox Desktop (Temporary Load)
-
-This is the fastest method to run the extension in standard Firefox.
-
-1. Open **Firefox** on your computer.
-2. In the address bar, navigate to: `about:debugging`
-3. Click **This Firefox** on the left menu bar.
-4. Click **Load Temporary Add-on...**.
-5. Browse to the `dvsa-firefox-extension` folder and select `manifest.json`.
-6. The extension is now loaded! You will see the 🎯 **Test Booking** icon in your toolbar.
-
-> *Note: Temporary add-ons remain loaded until Firefox is restarted.*
-
----
-
-### 2. Firefox Desktop via `web-ext`
-
-For active development or testing:
-
-1. Ensure Node.js is installed.
-2. Run the following command in the project folder:
-   ```bash
-   npm run start
-   ```
-   *Or:*
-   ```bash
-   npx web-ext run
-   ```
-3. A temporary Firefox instance will launch automatically with the extension pre-loaded and auto-reloading enabled.
-
----
-
-### 3. Firefox Android
-
-To run in **Firefox Nightly for Android**:
-
-1. Enable **Developer Options** in Firefox Nightly (Settings -> About Firefox Nightly -> Tap logo 5 times).
-2. Set up a **Custom Add-on Collection** in Settings using your Mozilla account.
-3. Alternatively, connect your Android device via USB with ADB debugging enabled and run:
-   ```bash
-   npx web-ext run --target=firefox-android
-   ```
-
----
-
-## 📦 Packaging & Building for Release
-
-### 1. Building the Extension Package
-
-To create a clean release package (`.zip` / `.xpi`) ready for installation or submission:
-
-#### Option A: Using npm / web-ext (Recommended)
-Run:
-```bash
-npm run build
-```
-This runs `npx web-ext build --overwrite-dest` and packages the extension into:
-```
-web-ext-artifacts/testbooking-1.0.1.zip
-```
-
-#### Option B: Manual Packaging
-If creating a package manually via command line:
-```bash
-zip -r dvsa-firefox-extension-v1.0.1.zip . -x "*.git*" "web-ext-artifacts/*" "node_modules/*" "*.DS_Store*"
-```
-
----
-
-### 2. Signing & Publishing on AMO (Add-ons for Firefox)
-
-Firefox requires extension packages to be signed by Mozilla before permanent installation in regular Firefox builds.
-
-#### Self-Hosted Unlisted Extension (XPI):
-1. Obtain an API Key & Secret from the [Mozilla Add-on Developer Hub](https://addons.mozilla.org/en-US/developers/addon/api/key/).
-2. Run the sign command:
-   ```bash
-   npx web-ext sign --api-key="YOUR_AMO_ISSUER" --api-secret="YOUR_AMO_SECRET"
-   ```
-3. `web-ext` will submit the extension, download the signed `.xpi` file to `web-ext-artifacts/`, which can then be directly installed into any standard Firefox browser.
-
-#### Public AMO Listing:
-Upload the generated `testbooking-1.0.1.zip` directly to [AMO Submission Dashboard](https://addons.mozilla.org/en-US/developers/addon/submit/distribution).
-
----
-
-## 🛠️ Configuration & Usage Guide
-
-### 1. Configuring Sniper Settings
-
-1. Click the **🎯 Test Booking** extension icon in Firefox.
-2. Under the **⚙️ Settings** tab, complete the required fields:
-   - **Driving Licence Number**: Your UK Driving Licence ID (e.g. `SMITH901024A999`).
-   - **Home Postcode**: Your local postcode (e.g. `SW1A 1AA`).
-   - **Preferred Test Centre (Optional)**: Filter by specific centres (e.g. `Croydon, Mitcham`). Leave blank for any nearest centre.
-   - **Earliest Preferred Date**: Format `DD/MM/YYYY` (e.g. `01/09/2026`). Slots prior to this date will be skipped.
-3. Under **Advanced Timing**:
-   - **Batch Size**: Number of searches before taking a break (Default: `10`).
-   - **Delay Between Searches**: Delay between consecutive page checks (Default: `1500` ms).
-   - **Delay Between Batches**: Cooldown pause duration after a batch (Default: `90000` ms / 1.5 mins).
-4. Click **💾 Save Settings**.
-5. Click **▶ START SNIPER**.
-6. Click **🌐 Open DVSA Portal in Firefox** (or navigate to `https://driverpracticaltest.dvsa.gov.uk/application?execution=e1s2`).
-
----
-
-### 2. Setting Up Mobile Push Alerts
-
-Receiving instant phone alerts ensures you can quickly complete payment when a slot is reserved.
-
-#### Method A: ntfy.sh (Recommended — Free & No Account Needed)
-1. Install the free **ntfy app** on your phone ([Google Play](https://play.google.com/store/apps/details?id=io.heckel.ntfy) / [Apple App Store](https://apps.apple.com/us/app/ntfy/id1625396386)).
-2. In the extension popup, switch to **📱 Push Alerts**.
-3. Type a unique topic name in **ntfy.sh Topic Name** (e.g. `my_dvsa_alerts_891`).
-4. In your phone's **ntfy** app, tap **+ Subscribe to topic** and enter the exact same topic name.
-5. Click **💾 Save Push Alert Settings**.
-
-#### Method B: Telegram Bot
-1. Search for `@BotFather` in Telegram and create a new bot to receive your **Bot Token**.
-2. Start a chat with your bot and fetch your **Chat ID** (e.g. via `@userinfobot`).
-3. Enter your Token & Chat ID into the **Telegram Bot Notifications** section in the extension popup and click **Save**.
-
----
-
-## 🛡️ Stealth & Anti-Pausing Architecture
-
-When Firefox tabs lose focus or window minimization occurs, browsers usually throttle JavaScript timers and suspend tasks. This extension embeds multi-layered mitigation:
-
-1. **Page Visibility Spoofing**: Overrides `document.hidden` (returns `false`) and `document.visibilityState` (returns `'visible'`) in the DOM main world.
-2. **Focus State Spoofing**: Intercepts `blur` / `focusout` events and overrides `document.hasFocus()` to return `true`.
-3. **Silent Web Audio Keep-Alive**: Plays an inaudible web audio loop (`gain = 0.00001`). Firefox exempts tabs producing audio from background suspension.
-4. **Web Worker Ticker**: Uses a dedicated background `Worker` for timers (`setInterval`/`clearInterval`) unaffected by main thread clamping.
-
----
-
-## 🧪 Development & Linting
-
-### Code Verification & Validation
-
-Run the official Mozilla WebExtension linter to verify schema adherence:
-```bash
-npm run lint
-```
-
-Outputs:
-```text
-Validation Summary:
-errors          0
-notices         0
-warnings        0
-```
-
-### Local Storage Keys
-
-| Key | Description |
+| Alert | What happens |
 |---|---|
-| `licenseId` | User driving licence number |
-| `postcode` | Search postcode |
-| `testCentre` | Preferred test centre filter string |
-| `afterDate` | Earliest acceptable date string (`DD/MM/YYYY`) |
-| `isRunning` | Boolean flag indicating whether sniper engine is active |
-| `batchSize` | Max searches per batch |
-| `timeBetweenSearches` | Inter-search delay in ms |
-| `timeBetweenBatches` | Inter-batch pause in ms |
-| `ntfyTopic` | Configured ntfy.sh topic name |
-| `telegramToken` | Telegram Bot token |
-| `telegramChatId` | Telegram chat recipient ID |
-| `logs` | Rolling logs array (max 200 items) |
+| 🧩 Captcha | DVSA shows an hCaptcha. Solve it and the sniper carries on by itself. It reminds you after 5, 15 and 30 minutes. |
+| ⛔ Blocked by DVSA bot protection | Imperva refused the request (shows the incident ID). The sniper stops. |
+| ⛔ Search limit reached | DVSA's search limit page appeared. The sniper stops. |
+| ⏳ In the DVSA queue | It waits in the queue and carries on when it's your turn. |
+| 🌙 Booking is closed | Outside DVSA's opening hours. The sniper stops. |
+| 🎯 Slot available | Alert-only mode found a slot (date, time and centre). |
+| 🎉 Slot reserved | A slot is being held. Finish your details and payment quickly. |
+| ❓ Stuck | It doesn't recognise the page after two reloads. Shows the page heading and stops. |
 
----
+The same alert isn't repeated within 10 minutes. Tapping an alert opens the DVSA tab. The **Logs** tab shows step by step what the engine is doing.
 
-## 🔄 CI/CD Pipelines & GitHub Workflows
+## Running in the background
 
-This repository includes pre-configured **GitHub Actions** workflows located in `.github/workflows/`:
+Android freezes Firefox when it's in the background or the screen is off, unless a tab is playing media. While a tab plays, Firefox runs a media foreground service.
 
-1. **Continuous Integration & Linting (`.github/workflows/ci.yml`)**:
-   - Triggers automatically on every `push` and `pull_request` to `main`/`master`.
-   - Validates JSON manifest syntax and runs `npx web-ext lint` to guarantee code quality.
-   - Builds the `.zip` extension package and stores it as a build artifact.
+TestBooking plays an inaudible 20 Hz tone (`keepalive.wav`) to stay awake. In **background mode**, the DVSA tab becomes a host page that never navigates. It plays the tone and shows the DVSA pages in a full-screen same-origin frame. Moving between DVSA pages then never interrupts the sound. If each page played the sound itself, every page load would stop it. Android 12+ doesn't let Firefox restart its foreground service from the background, so Firefox would be frozen after the first search.
 
-2. **Automated GitHub Releases (`.github/workflows/release.yml`)**:
-   - Triggers when a new version tag (e.g. `v1.0.1`) is pushed or manually invoked.
-   - Automatically compiles the extension and publishes a GitHub Release with the bundled `.zip` attached.
+While it's running you'll see a media notification. Pausing it stops the sniper. When the sniper stops, the tab turns back into a normal DVSA page.
 
-3. **Mozilla AMO Signing & Publishing (`.github/workflows/amo-submit.yml`)**:
-   - Manual workflow (`workflow_dispatch`) to automatically sign and submit `.xpi` extensions to Mozilla Add-ons (requires `AMO_JWT_ISSUER` & `AMO_JWT_SECRET` in GitHub Secrets).
+**Testing it:** start the sniper, lock the phone for 10+ minutes, then open **Control → 📱 Background health**. It lists every time Firefox was frozen (gaps in the engine's 10-second heartbeat). The same gaps are written to the Logs tab.
 
----
+## Releasing a new version
 
-## 📄 License
+You need two repo secrets set once: `AMO_JWT_ISSUER` and `AMO_JWT_SECRET`. Get them from <https://addons.mozilla.org/developers/addon/api/key/>.
 
-Distributed under the MIT License.
+```bash
+npm run version 1.0.8          # bumps manifest.json + package.json
+git commit -am "v1.0.8"
+git tag v1.0.8 && git push --follow-tags
+```
+
+The **Release** workflow lints the extension, gets it signed by Mozilla (unlisted, so it isn't public on AMO) and publishes a GitHub Release with `testbooking.xpi`. The download link above always points at the latest release.
+
+To sign locally instead, put `WEB_EXT_API_KEY` / `WEB_EXT_API_SECRET` in `.env` and run `npm run sign`. The signed `.xpi` lands in `web-ext-artifacts/`.
+
+Each signed version must be higher than the last one.
+
+## Development
+
+```bash
+npm install
+npm run lint             # web-ext lint
+npm run build            # unsigned zip in web-ext-artifacts/
+npm start                # run on a phone over USB (adb + Firefox "Remote debugging via USB")
+```
+
+### Live test harness
+
+`scripts/bidi.mjs` drives a throwaway desktop Firefox profile over WebDriver BiDi, with the extension installed, so you can test against the real DVSA site from a computer:
+
+```bash
+node scripts/bidi.mjs launch          # start Firefox + control daemon, install extension
+node scripts/bidi.mjs goto <url>      # navigate the DVSA tab
+node scripts/bidi.mjs shot [file]     # screenshot the DVSA tab
+node scripts/bidi.mjs eval "<js>"     # run JS (function body) in the DVSA tab
+node scripts/bidi.mjs ext "<js>"      # run JS in an extension page (has `browser`)
+node scripts/bidi.mjs logs [n]        # engine state + last n log lines (licence redacted)
+node scripts/bidi.mjs reload          # reinstall the extension from disk
+node scripts/bidi.mjs quit
+```
+
+Remote-control mode is detectable: Imperva challenges and often blocks these sessions. To test the full booking flow, run the extension in a normal profile with `web-ext run --firefox-profile <dir> --keep-profile-changes` instead.
+
+## Files
+
+| File | Purpose |
+|---|---|
+| `manifest.json` | MV3 manifest (Firefox for Android) |
+| `background.js` | Notifications, logs, watchdog |
+| `content.js` | Host page (background mode) and the booking engine on DVSA pages |
+| `stealth.js` | Page-world script injected on DVSA pages: visibility/focus spoofing, silent audio, worker timers |
+| `keepalive.wav` | Inaudible looping tone that keeps Firefox awake in the background |
+| `popup.html/css/js` | Settings, controls, background health and logs |
+| `scripts/set-version.mjs` | Version bump helper used by the release pipeline |
+| `scripts/bidi.mjs` | Live test harness (not shipped) |
+
+## License
+
+MIT
