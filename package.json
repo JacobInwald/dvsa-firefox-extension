@@ -1,6 +1,6 @@
 {
   "name": "dvsa-firefox-extension",
-  "version": "1.0.7",
+  "version": "1.0.8",
   "private": true,
   "description": "Automated DVSA driving test slot finder for Firefox for Android.",
   "scripts": {
